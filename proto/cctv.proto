@@ -1,0 +1,13 @@
+syntax = "proto3";
+
+package cctv;
+
+service Monitoring {
+    rpc GetImage (Empty) returns (stream Image) {}
+}
+
+message Empty {}
+
+message Image {
+    bytes data = 1 ;
+}
