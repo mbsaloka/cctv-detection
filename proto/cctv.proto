@@ -3,7 +3,13 @@ syntax = "proto3";
 package cctv;
 
 service Monitoring {
-    rpc GetImage (Empty) returns (stream Image) {}
+    rpc GetImage (Empty) returns (Image) {}
+
+    rpc GetDetection (Empty) returns (Detection) {}
+
+    rpc GetCameraSettings (Empty) returns (CameraSettings) {}
+
+    rpc SetCameraSettings (CameraSettings) returns (Empty) {}
 }
 
 message Empty {}
@@ -11,3 +17,14 @@ message Empty {}
 message Image {
     bytes data = 1 ;
 }
+
+message Detection {
+    int32 count = 1;
+}
+
+message CameraSettings {
+    int32 brightness = 1;
+    int32 contrast = 2;
+    int32 saturation = 3;
+}
+

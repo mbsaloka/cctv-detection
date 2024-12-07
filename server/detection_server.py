@@ -7,6 +7,10 @@ import cctv_pb2_grpc as pb2_grpc
 import cctv_pb2 as pb2
 from ultralytics import YOLO
 import collections
+import requests
+import os
+
+home = os.getcwd() + "/"
 
 class CCTVService(pb2_grpc.MonitoringServicer):
     def __init__(self):
@@ -19,20 +23,24 @@ class CCTVService(pb2_grpc.MonitoringServicer):
         self.video_saving = False
         self.video_writer = None
         self.frame_buffer = collections.deque(maxlen=50)
-        self.fps = 10
+        self.fps = 12
         self.no_person_count = 0
+        self.person_count = 0
+        self.camera_index = 0
 
     def capture_frames(self):
         model = YOLO('./models/model.pt')
-        cap = cv2.VideoCapture(0)
-        cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
-        cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
+        cap = cv2.VideoCapture(self.camera_index)
+        cap.set(cv2.CAP_PROP_FRAME_WIDTH, 320)
+        cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 240)
+        cap.set(cv2.CAP_PROP_FPS, self.fps)
 
         while True:
             success, frame = cap.read()
             if success:
                 results = model.track(frame, classes=0, conf=0.6, imgsz=480, verbose=False)
                 person_detected = len(results[0].boxes) > 0
+                self.person_count = len(results[0].boxes)
 
                 for i, box in enumerate(results[0].boxes):
                     x1, y1, x2, y2 = map(int, box.xyxy[0])
@@ -51,7 +59,8 @@ class CCTVService(pb2_grpc.MonitoringServicer):
                 if person_detected and not self.video_saving:
                     self.video_saving = True
                     timestamp = time.strftime("%Y%m%d_%H%M%S")
-                    self.video_writer = cv2.VideoWriter(f'output_{timestamp}.avi', cv2.VideoWriter_fourcc(*'MJPG'), self.fps, (640, 480))
+                    video_path = f"/captures/video_{timestamp}.avi"
+                    self.video_writer = cv2.VideoWriter(video_path, cv2.VideoWriter_fourcc(*'MJPG'), self.fps, (640, 480))
                     print("Started saving video.")
 
                 if self.video_saving:
@@ -62,13 +71,28 @@ class CCTVService(pb2_grpc.MonitoringServicer):
                         self.no_person_count += 1
 
                     if len(self.frame_buffer) >= 50 or self.no_person_count >= 5:
-                        cv2.imwrite(f"output_{timestamp}.jpg", self.frame_buffer[int(len(self.frame_buffer) / 2)])
+                        image_path = f"captures/image_{timestamp}.jpg"
+                        cv2.imwrite(image_path, self.frame_buffer[int(len(self.frame_buffer) / 2)])
                         self.video_saving = False
                         self.video_writer.release()
                         self.video_writer = None
                         self.frame_buffer.clear()
                         self.no_person_count = 0
                         print("Finished saving video.")
+
+                        # Send POST request to Express.js server
+                        try:
+                            response = requests.post(
+                                "http://localhost:3000/images/upload",
+                                json={"filePath": home + image_path, "totalEntity": self.person_count},
+                                headers={"Content-Type": "application/json"}
+                            )
+                            if response.status_code == 201:
+                                print("Image uploaded successfully.")
+                            else:
+                                print(f"Failed to upload image: {response.status_code}, {response.text}")
+                        except requests.RequestException as e:
+                            print(f"Error uploading image: {e}")
 
                 _, buffer = cv2.imencode('.jpg', frame)
                 with self.lock:
