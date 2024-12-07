@@ -55,7 +55,6 @@ class CCTVService(pb2_grpc.MonitoringServicer):
                     cv2.rectangle(frame, (x1, y1 - 20), (x1 + text_width, y1), (0, 0, 255), -1)
                     cv2.putText(frame, label, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
 
-
                 if person_detected and not self.video_saving:
                     self.video_saving = True
                     timestamp = time.strftime("%Y%m%d_%H%M%S")
@@ -107,12 +106,14 @@ class CCTVService(pb2_grpc.MonitoringServicer):
         cap.release()
 
     def GetImage(self, request, context):
-        # print("Send frame to client")
         with self.lock:
             if self.frame is None:
                 print("No frame available")
                 return pb2.Image(data=b"")
             return pb2.Image(data=self.frame)
+
+    def GetDetection(self, request, context):
+        return pb2.Detection(count=self.person_count)
 
 def serve():
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))

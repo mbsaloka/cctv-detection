@@ -24,7 +24,7 @@ _sym_db = _symbol_database.Default()
 
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\ncctv.proto\x12\x04\x63\x63tv\"\x07\n\x05\x45mpty\"\x15\n\x05Image\x12\x0c\n\x04\x64\x61ta\x18\x01 \x01(\x0c\x32\x34\n\nMonitoring\x12&\n\x08GetImage\x12\x0b.cctv.Empty\x1a\x0b.cctv.Image\"\x00\x62\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\ncctv.proto\x12\x04\x63\x63tv\"\x07\n\x05\x45mpty\"\x15\n\x05Image\x12\x0c\n\x04\x64\x61ta\x18\x01 \x01(\x0c\"\x1a\n\tDetection\x12\r\n\x05\x63ount\x18\x01 \x01(\x05\"J\n\x0e\x43\x61meraSettings\x12\x12\n\nbrightness\x18\x01 \x01(\x05\x12\x10\n\x08\x63ontrast\x18\x02 \x01(\x05\x12\x12\n\nsaturation\x18\x03 \x01(\x05\x32\xd8\x01\n\nMonitoring\x12&\n\x08GetImage\x12\x0b.cctv.Empty\x1a\x0b.cctv.Image\"\x00\x12.\n\x0cGetDetection\x12\x0b.cctv.Empty\x1a\x0f.cctv.Detection\"\x00\x12\x38\n\x11GetCameraSettings\x12\x0b.cctv.Empty\x1a\x14.cctv.CameraSettings\"\x00\x12\x38\n\x11SetCameraSettings\x12\x14.cctv.CameraSettings\x1a\x0b.cctv.Empty\"\x00\x62\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
@@ -35,6 +35,10 @@ if not _descriptor._USE_C_DESCRIPTORS:
   _globals['_EMPTY']._serialized_end=27
   _globals['_IMAGE']._serialized_start=29
   _globals['_IMAGE']._serialized_end=50
-  _globals['_MONITORING']._serialized_start=52
-  _globals['_MONITORING']._serialized_end=104
+  _globals['_DETECTION']._serialized_start=52
+  _globals['_DETECTION']._serialized_end=78
+  _globals['_CAMERASETTINGS']._serialized_start=80
+  _globals['_CAMERASETTINGS']._serialized_end=154
+  _globals['_MONITORING']._serialized_start=157
+  _globals['_MONITORING']._serialized_end=373
 # @@protoc_insertion_point(module_scope)

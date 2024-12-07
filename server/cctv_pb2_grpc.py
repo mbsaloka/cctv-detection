@@ -39,12 +39,45 @@ class MonitoringStub(object):
                 request_serializer=cctv__pb2.Empty.SerializeToString,
                 response_deserializer=cctv__pb2.Image.FromString,
                 _registered_method=True)
+        self.GetDetection = channel.unary_unary(
+                '/cctv.Monitoring/GetDetection',
+                request_serializer=cctv__pb2.Empty.SerializeToString,
+                response_deserializer=cctv__pb2.Detection.FromString,
+                _registered_method=True)
+        self.GetCameraSettings = channel.unary_unary(
+                '/cctv.Monitoring/GetCameraSettings',
+                request_serializer=cctv__pb2.Empty.SerializeToString,
+                response_deserializer=cctv__pb2.CameraSettings.FromString,
+                _registered_method=True)
+        self.SetCameraSettings = channel.unary_unary(
+                '/cctv.Monitoring/SetCameraSettings',
+                request_serializer=cctv__pb2.CameraSettings.SerializeToString,
+                response_deserializer=cctv__pb2.Empty.FromString,
+                _registered_method=True)
 
 
 class MonitoringServicer(object):
     """Missing associated documentation comment in .proto file."""
 
     def GetImage(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def GetDetection(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def GetCameraSettings(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def SetCameraSettings(self, request, context):
         """Missing associated documentation comment in .proto file."""
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
@@ -57,6 +90,21 @@ def add_MonitoringServicer_to_server(servicer, server):
                     servicer.GetImage,
                     request_deserializer=cctv__pb2.Empty.FromString,
                     response_serializer=cctv__pb2.Image.SerializeToString,
+            ),
+            'GetDetection': grpc.unary_unary_rpc_method_handler(
+                    servicer.GetDetection,
+                    request_deserializer=cctv__pb2.Empty.FromString,
+                    response_serializer=cctv__pb2.Detection.SerializeToString,
+            ),
+            'GetCameraSettings': grpc.unary_unary_rpc_method_handler(
+                    servicer.GetCameraSettings,
+                    request_deserializer=cctv__pb2.Empty.FromString,
+                    response_serializer=cctv__pb2.CameraSettings.SerializeToString,
+            ),
+            'SetCameraSettings': grpc.unary_unary_rpc_method_handler(
+                    servicer.SetCameraSettings,
+                    request_deserializer=cctv__pb2.CameraSettings.FromString,
+                    response_serializer=cctv__pb2.Empty.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
@@ -86,6 +134,87 @@ class Monitoring(object):
             '/cctv.Monitoring/GetImage',
             cctv__pb2.Empty.SerializeToString,
             cctv__pb2.Image.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def GetDetection(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/cctv.Monitoring/GetDetection',
+            cctv__pb2.Empty.SerializeToString,
+            cctv__pb2.Detection.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def GetCameraSettings(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/cctv.Monitoring/GetCameraSettings',
+            cctv__pb2.Empty.SerializeToString,
+            cctv__pb2.CameraSettings.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def SetCameraSettings(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/cctv.Monitoring/SetCameraSettings',
+            cctv__pb2.CameraSettings.SerializeToString,
+            cctv__pb2.Empty.FromString,
             options,
             channel_credentials,
             insecure,
