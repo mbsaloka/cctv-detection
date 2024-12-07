@@ -1,5 +1,6 @@
 import cv2
 import grpc
+import json
 from concurrent import futures
 import threading
 import time
@@ -11,6 +12,7 @@ import requests
 import os
 
 home = os.getcwd() + "/"
+settings_file = home + "config/camera_settings.json"
 
 class CCTVService(pb2_grpc.MonitoringServicer):
     def __init__(self):
@@ -25,22 +27,46 @@ class CCTVService(pb2_grpc.MonitoringServicer):
         self.frame_buffer = collections.deque(maxlen=50)
         self.fps = 12
         self.no_person_count = 0
-        self.person_count = 0
+        self.person_detected = 0
+        self.cap = None
         self.camera_index = 0
+
+        self.settings = self.load_settings()
+
+    def load_settings(self):
+        try:
+            with open(settings_file, 'r') as f:
+                settings = json.load(f)
+            print("Settings loaded successfully:", settings)
+            return settings
+        except (FileNotFoundError, json.JSONDecodeError) as e:
+            print(f"Error loading settings: {e}")
+            return {}
+
+    def apply_camera_settings(self):
+        if 'brightness' in self.settings:
+            self.cap.set(cv2.CAP_PROP_BRIGHTNESS, self.settings['brightness'])
+        if 'contrast' in self.settings:
+            self.cap.set(cv2.CAP_PROP_CONTRAST, self.settings['contrast'])
+        if 'saturation' in self.settings:
+            self.cap.set(cv2.CAP_PROP_SATURATION, self.settings['saturation'])
 
     def capture_frames(self):
         model = YOLO('./models/model.pt')
-        cap = cv2.VideoCapture(self.camera_index)
-        cap.set(cv2.CAP_PROP_FRAME_WIDTH, 320)
-        cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 240)
-        cap.set(cv2.CAP_PROP_FPS, self.fps)
+        self.cap = cv2.VideoCapture(self.camera_index)
+        self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, 320)
+        self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 240)
+        self.cap.set(cv2.CAP_PROP_FPS, self.fps)
+
+        # Apply camera settings from JSON
+        self.apply_camera_settings()
 
         while True:
-            success, frame = cap.read()
+            success, frame = self.cap.read()
             if success:
                 results = model.track(frame, classes=0, conf=0.6, imgsz=480, verbose=False)
                 person_detected = len(results[0].boxes) > 0
-                self.person_count = len(results[0].boxes)
+                self.person_detected = len(results[0].boxes)
 
                 for i, box in enumerate(results[0].boxes):
                     x1, y1, x2, y2 = map(int, box.xyxy[0])
@@ -83,7 +109,7 @@ class CCTVService(pb2_grpc.MonitoringServicer):
                         try:
                             response = requests.post(
                                 "http://localhost:3000/images/upload",
-                                json={"filePath": home + image_path, "totalEntity": self.person_count},
+                                json={"filePath": home + image_path, "totalEntity": self.person_detected},
                                 headers={"Content-Type": "application/json"}
                             )
                             if response.status_code == 201:
@@ -103,7 +129,7 @@ class CCTVService(pb2_grpc.MonitoringServicer):
                 break
             time.sleep(0.1)
 
-        cap.release()
+        self.cap.release()
 
     def GetImage(self, request, context):
         with self.lock:
@@ -113,7 +139,28 @@ class CCTVService(pb2_grpc.MonitoringServicer):
             return pb2.Image(data=self.frame)
 
     def GetDetection(self, request, context):
-        return pb2.Detection(count=self.person_count)
+        return pb2.Detection(count=self.person_detected)
+
+    def GetCameraSettings(self, request, context):
+        return pb2.CameraSettings(
+            brightness=self.settings['brightness'],
+            contrast=self.settings['contrast'],
+            saturation=self.settings['saturation']
+        )
+
+    def SetCameraSettings(self, request, context):
+        self.settings = {
+            'brightness': request.brightness if request.brightness >= 0 else self.settings['brightness'],
+            'contrast': request.contrast if request.contrast >= 0 else self.settings['contrast'],
+            'saturation': request.saturation if request.saturation >= 0 else self.settings['saturation']
+        }
+
+        self.apply_camera_settings()
+
+        with open("config/camera_settings.json", 'w') as f:
+            json.dump(self.settings, f)
+        print("Camera settings updated:", self.settings)
+        return pb2.Empty()
 
 def serve():
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
