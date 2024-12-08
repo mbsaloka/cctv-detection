@@ -13,6 +13,8 @@ import os
 
 home = os.getcwd() + "/"
 settings_file = home + "config/camera_settings.json"
+ip_config_file = home + "config/ip_config.json"
+grpc_file = home + "config/grpc.json"
 
 class CCTVService(pb2_grpc.MonitoringServicer):
     def __init__(self):
@@ -32,6 +34,7 @@ class CCTVService(pb2_grpc.MonitoringServicer):
         self.camera_index = 0
 
         self.settings = self.load_settings()
+        self.ip_config = self.load_ip_config()
 
     def load_settings(self):
         try:
@@ -42,6 +45,25 @@ class CCTVService(pb2_grpc.MonitoringServicer):
         except (FileNotFoundError, json.JSONDecodeError) as e:
             print(f"Error loading settings: {e}")
             return {}
+
+    def load_ip_config(self):
+        if not os.path.exists(ip_config_file):
+            print(f"Error: IP config file '{ip_config_file}' not found.")
+            return {"host": "localhost", "port": 3000}
+
+        try:
+            with open(ip_config_file, 'r') as f:
+                ip_config = json.load(f)
+                if 'host' not in ip_config or 'port' not in ip_config:
+                    raise ValueError("Missing 'host' or 'port' in IP config file.")
+                print("IP config loaded successfully:", ip_config)
+                return ip_config
+        except json.JSONDecodeError as e:
+            print(f"Error parsing IP config file '{ip_config_file}': {e}")
+            return {"host": "localhost", "port": 3000}
+        except ValueError as e:
+            print(f"Error: {e}")
+            return {"host": "localhost", "port": 3000}
 
     def apply_camera_settings(self):
         if 'brightness' in self.settings:
@@ -85,7 +107,7 @@ class CCTVService(pb2_grpc.MonitoringServicer):
                     self.video_saving = True
                     timestamp = time.strftime("%Y%m%d_%H%M%S")
                     video_path = f"/captures/video_{timestamp}.avi"
-                    self.video_writer = cv2.VideoWriter(video_path, cv2.VideoWriter_fourcc(*'MJPG'), self.fps, (640, 480))
+                    self.video_writer = cv2.VideoWriter(video_path, cv2.VideoWriter_fourcc(*'MJPG'), self.fps, (320, 240))
                     print("Started saving video.")
 
                 if self.video_saving:
@@ -95,7 +117,7 @@ class CCTVService(pb2_grpc.MonitoringServicer):
                     if not person_detected:
                         self.no_person_count += 1
 
-                    if len(self.frame_buffer) >= 50 or self.no_person_count >= 5:
+                    if len(self.frame_buffer) >= 5regu0 or self.no_person_count >= 5:
                         image_path = f"captures/image_{timestamp}.jpg"
                         cv2.imwrite(image_path, self.frame_buffer[int(len(self.frame_buffer) / 2)])
                         self.video_saving = False
@@ -107,15 +129,16 @@ class CCTVService(pb2_grpc.MonitoringServicer):
 
                         # Send POST request to Express.js server
                         try:
-                            response = requests.post(
-                                "http://localhost:3000/images/upload",
-                                json={"filePath": home + image_path, "totalEntity": self.person_detected},
-                                headers={"Content-Type": "application/json"}
-                            )
-                            if response.status_code == 201:
-                                print("Image uploaded successfully.")
-                            else:
-                                print(f"Failed to upload image: {response.status_code}, {response.text}")
+                            with open(image_path, 'rb') as img_file:
+                                response = requests.post(
+                                    f"http://{self.ip_config['host']}:{self.ip_config['port']}/images/upload",
+                                    files={"image": img_file},
+                                    data={"totalEntity": self.person_detected}
+                                )
+                                if response.status_code == 201:
+                                    print("Image uploaded successfully.")
+                                else:
+                                    print(f"Failed to upload image: {response.status_code}, {response.text}")
                         except requests.RequestException as e:
                             print(f"Error uploading image: {e}")
 
@@ -125,7 +148,8 @@ class CCTVService(pb2_grpc.MonitoringServicer):
             else:
                 print("Error reading frame")
             if cv2.waitKey(1) & 0xFF == ord('q'):
-                self.video_writer.release()
+                if self.video_writer:
+                    self.video_writer.release()
                 break
             time.sleep(0.1)
 
@@ -143,30 +167,35 @@ class CCTVService(pb2_grpc.MonitoringServicer):
 
     def GetCameraSettings(self, request, context):
         return pb2.CameraSettings(
-            brightness=self.settings['brightness'],
-            contrast=self.settings['contrast'],
-            saturation=self.settings['saturation']
+            brightness=self.settings.get('brightness', 0),
+            contrast=self.settings.get('contrast', 0),
+            saturation=self.settings.get('saturation', 0)
         )
 
     def SetCameraSettings(self, request, context):
         self.settings = {
-            'brightness': request.brightness if request.brightness >= 0 else self.settings['brightness'],
-            'contrast': request.contrast if request.contrast >= 0 else self.settings['contrast'],
-            'saturation': request.saturation if request.saturation >= 0 else self.settings['saturation']
+            'brightness': request.brightness if request.brightness >= 0 else self.settings.get('brightness', 0),
+            'contrast': request.contrast if request.contrast >= 0 else self.settings.get('contrast', 0),
+            'saturation': request.saturation if request.saturation >= 0 else self.settings.get('saturation', 0)
         }
 
         self.apply_camera_settings()
 
-        with open("config/camera_settings.json", 'w') as f:
+        with open(settings_file, 'w') as f:
             json.dump(self.settings, f)
         print("Camera settings updated:", self.settings)
         return pb2.Empty()
 
 def serve():
+    grpc_config = {}
+    with open(grpc_file, 'r') as f:
+        grpc_config = json.load(f)
+    port = grpc_config.get('port', 50051)
+
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
     pb2_grpc.add_MonitoringServicer_to_server(CCTVService(), server)
-    server.add_insecure_port('[::]:50051')
-    print("Server started on port 50051.")
+    server.add_insecure_port(f'[::]:{port}')
+    print(f"Server started on port {port}.")
     server.start()
     server.wait_for_termination()
 
