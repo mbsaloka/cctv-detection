@@ -32,7 +32,7 @@ class CCTVService(pb2_grpc.MonitoringServicer):
         self.no_person_count = 0
         self.person_detected = 0
         self.cap = None
-        self.camera_index = 0
+        self.camera_index = "rtsp://192.168.1.1/live/ch00_1?rtsp_transport=tcp"
 
         self.settings = self.load_settings()
         self.ip_config = self.load_ip_config()
@@ -67,16 +67,31 @@ class CCTVService(pb2_grpc.MonitoringServicer):
             return {"host": "localhost", "port": 3000}
 
     def apply_camera_settings(self):
-        if 'brightness' in self.settings:
-            self.cap.set(cv2.CAP_PROP_BRIGHTNESS, self.settings['brightness'])
-        if 'contrast' in self.settings:
-            self.cap.set(cv2.CAP_PROP_CONTRAST, self.settings['contrast'])
-        if 'saturation' in self.settings:
-            self.cap.set(cv2.CAP_PROP_SATURATION, self.settings['saturation'])
+        if str(self.camera_index).isdigit():
+            if 'brightness' in self.settings:
+                self.cap.set(cv2.CAP_PROP_BRIGHTNESS, self.settings['brightness'])
+            if 'contrast' in self.settings:
+                self.cap.set(cv2.CAP_PROP_CONTRAST, self.settings['contrast'])
+            if 'saturation' in self.settings:
+                self.cap.set(cv2.CAP_PROP_SATURATION, self.settings['saturation'])
+
+    def map_value(self,value, from_min, from_max, to_min, to_max):
+        return (value - from_min) / (from_max - from_min) * (to_max - to_min) + to_min
+
+    def adjust_image(self, image, alpha=1.0, beta=0, saturation_scale=1.0):
+        adjusted = cv2.addWeighted(image, alpha, image, 0, beta)
+
+        hsv = cv2.cvtColor(adjusted, cv2.COLOR_BGR2HSV)
+        h, s, v = cv2.split(hsv)
+        s = cv2.multiply(s, saturation_scale)
+        s = cv2.min(s, 255)
+
+        hsv = cv2.merge((h, s, v))
+        return cv2.cvtColor(hsv, cv2.COLOR_HSV2BGR)
 
     def capture_frames(self):
         model = YOLO('./models/model.pt')
-        self.cap = cv2.VideoCapture(self.camera_index)
+        self.cap = cv2.VideoCapture(self.camera_index, cv2.CAP_FFMPEG)
 
         self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, 320)
         self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 240)
@@ -84,8 +99,17 @@ class CCTVService(pb2_grpc.MonitoringServicer):
         self.apply_camera_settings()
 
         while True:
+            for _ in range(4):
+                self.cap.read()
             success, frame = self.cap.read()
             if success:
+                if str(self.camera_index).startswith("rtsp://"):
+                    frame = self.adjust_image(
+                        frame,
+                        self.map_value(self.settings.get("contrast"), 0, 255, 0.0, 3.0),
+                        self.map_value(self.settings.get("brightness"), 0, 255, -255, 255),
+                        self.map_value(self.settings.get("saturation"), 0, 255, 0.0, 2.0))
+
                 results = model.track(frame, classes=0, conf=0.6, imgsz=320, verbose=False)
                 person_detected = len(results[0].boxes) > 0
                 self.person_detected = len(results[0].boxes)
