@@ -27,6 +27,7 @@ class CCTVService(pb2_grpc.MonitoringServicer):
         self.video_saving = False
         self.video_writer = None
         self.frame_buffer = collections.deque(maxlen=50)
+        self.detection_buffer = collections.deque(maxlen=50)
         self.fps = 12
         self.no_person_count = 0
         self.person_detected = 0
@@ -76,17 +77,16 @@ class CCTVService(pb2_grpc.MonitoringServicer):
     def capture_frames(self):
         model = YOLO('./models/model.pt')
         self.cap = cv2.VideoCapture(self.camera_index)
+
         self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, 320)
         self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 240)
         self.cap.set(cv2.CAP_PROP_FPS, self.fps)
-
-        # Apply camera settings from JSON
         self.apply_camera_settings()
 
         while True:
             success, frame = self.cap.read()
             if success:
-                results = model.track(frame, classes=0, conf=0.6, imgsz=480, verbose=False)
+                results = model.track(frame, classes=0, conf=0.6, imgsz=320, verbose=False)
                 person_detected = len(results[0].boxes) > 0
                 self.person_detected = len(results[0].boxes)
 
@@ -112,39 +112,47 @@ class CCTVService(pb2_grpc.MonitoringServicer):
 
                 if self.video_saving:
                     self.frame_buffer.append(frame)
+                    self.detection_buffer.append(self.person_detected)
                     self.video_writer.write(frame)
 
                     if not person_detected:
                         self.no_person_count += 1
 
-                    if len(self.frame_buffer) >= 5regu0 or self.no_person_count >= 5:
+                    if len(self.frame_buffer) >= 50 or self.no_person_count >= 5:
                         image_path = f"captures/image_{timestamp}.jpg"
-                        cv2.imwrite(image_path, self.frame_buffer[int(len(self.frame_buffer) / 2)])
+                        index = int(len(self.frame_buffer) / 2)
+                        image_saved = self.frame_buffer[index]
+                        detection_saved = self.detection_buffer[index]
+                        cv2.imwrite(image_path, image_saved)
                         self.video_saving = False
                         self.video_writer.release()
                         self.video_writer = None
                         self.frame_buffer.clear()
+                        self.detection_buffer.clear()
                         self.no_person_count = 0
+                        self.person_detected = 0
                         print("Finished saving video.")
 
                         # Send POST request to Express.js server
-                        try:
-                            with open(image_path, 'rb') as img_file:
-                                response = requests.post(
-                                    f"http://{self.ip_config['host']}:{self.ip_config['port']}/images/upload",
-                                    files={"image": img_file},
-                                    data={"totalEntity": self.person_detected}
-                                )
-                                if response.status_code == 201:
-                                    print("Image uploaded successfully.")
-                                else:
-                                    print(f"Failed to upload image: {response.status_code}, {response.text}")
-                        except requests.RequestException as e:
-                            print(f"Error uploading image: {e}")
+                        if detection_saved > 0:
+                            try:
+                                with open(image_path, 'rb') as img_file:
+                                    response = requests.post(
+                                        f"http://{self.ip_config['host']}:{self.ip_config['port']}/images/upload",
+                                        files={"image": img_file},
+                                        data={"totalEntity": detection_saved}
+                                    )
+                                    if response.status_code == 201:
+                                        print("Image uploaded successfully.")
+                                    else:
+                                        print(f"Failed to upload image: {response.status_code}, {response.text}")
+                            except requests.RequestException as e:
+                                print(f"Error uploading image: {e}")
 
                 _, buffer = cv2.imencode('.jpg', frame)
                 with self.lock:
                     self.frame = buffer.tobytes()
+                # cv2.imshow('frame', frame)
             else:
                 print("Error reading frame")
             if cv2.waitKey(1) & 0xFF == ord('q'):
@@ -154,6 +162,7 @@ class CCTVService(pb2_grpc.MonitoringServicer):
             time.sleep(0.1)
 
         self.cap.release()
+        # cv2.destroyAllWindows()
 
     def GetImage(self, request, context):
         with self.lock:
