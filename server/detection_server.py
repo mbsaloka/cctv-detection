@@ -33,6 +33,7 @@ class CCTVService(pb2_grpc.MonitoringServicer):
         self.person_detected = 0
         self.cap = None
         self.camera_index = "rtsp://192.168.1.1/live/ch00_1?rtsp_transport=tcp"
+        self.is_using_rtsp = str(self.camera_index).startswith("rtsp://")
 
         self.settings = self.load_settings()
         self.ip_config = self.load_ip_config()
@@ -67,7 +68,7 @@ class CCTVService(pb2_grpc.MonitoringServicer):
             return {"host": "localhost", "port": 3000}
 
     def apply_camera_settings(self):
-        if str(self.camera_index).isdigit():
+        if not self.is_using_rtsp:
             if 'brightness' in self.settings:
                 self.cap.set(cv2.CAP_PROP_BRIGHTNESS, self.settings['brightness'])
             if 'contrast' in self.settings:
@@ -99,11 +100,12 @@ class CCTVService(pb2_grpc.MonitoringServicer):
         self.apply_camera_settings()
 
         while True:
-            for _ in range(4):
-                self.cap.read()
+            if self.is_using_rtsp:
+                for _ in range(5):
+                    self.cap.read()
             success, frame = self.cap.read()
             if success:
-                if str(self.camera_index).startswith("rtsp://"):
+                if self.is_using_rtsp:
                     frame = self.adjust_image(
                         frame,
                         self.map_value(self.settings.get("contrast"), 0, 255, 0.0, 3.0),
