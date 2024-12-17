@@ -32,7 +32,7 @@ class CCTVService(pb2_grpc.MonitoringServicer):
         self.no_person_count = 0
         self.person_detected = 0
         self.cap = None
-        self.camera_index = "rtsp://192.168.1.1/live/ch00_1?rtsp_transport=tcp"
+        self.camera_index = "rtsp://192.168.1.1/live/ch00_0?rtsp_transport=tcp"
         self.is_using_rtsp = str(self.camera_index).startswith("rtsp://")
 
         self.settings = self.load_settings()
@@ -101,7 +101,7 @@ class CCTVService(pb2_grpc.MonitoringServicer):
 
         while True:
             if self.is_using_rtsp:
-                for _ in range(6):
+                for _ in range(5):
                     self.cap.read()
             success, frame = self.cap.read()
             if success:
