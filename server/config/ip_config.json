@@ -1,4 +1,3 @@
 {
-  "host": "localhost",
-  "port": 3000
+  "ip": "https://cctv-logger-production.up.railway.app"
 }

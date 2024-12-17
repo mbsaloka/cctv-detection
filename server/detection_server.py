@@ -51,21 +51,21 @@ class CCTVService(pb2_grpc.MonitoringServicer):
     def load_ip_config(self):
         if not os.path.exists(ip_config_file):
             print(f"Error: IP config file '{ip_config_file}' not found.")
-            return {"host": "localhost", "port": 3000}
+            return {"ip": "http://localhost:3000"}
 
         try:
             with open(ip_config_file, 'r') as f:
                 ip_config = json.load(f)
-                if 'host' not in ip_config or 'port' not in ip_config:
-                    raise ValueError("Missing 'host' or 'port' in IP config file.")
+                if 'ip' not in ip_config:
+                    raise ValueError("Missing 'ip' in IP config file.")
                 print("IP config loaded successfully:", ip_config)
                 return ip_config
         except json.JSONDecodeError as e:
             print(f"Error parsing IP config file '{ip_config_file}': {e}")
-            return {"host": "localhost", "port": 3000}
+            return {"ip": "http://localhost:3000"}
         except ValueError as e:
             print(f"Error: {e}")
-            return {"host": "localhost", "port": 3000}
+            return {"ip": "http://localhost:3000"}
 
     def apply_camera_settings(self):
         if not self.is_using_rtsp:
@@ -101,7 +101,7 @@ class CCTVService(pb2_grpc.MonitoringServicer):
 
         while True:
             if self.is_using_rtsp:
-                for _ in range(5):
+                for _ in range(6):
                     self.cap.read()
             success, frame = self.cap.read()
             if success:
@@ -164,7 +164,7 @@ class CCTVService(pb2_grpc.MonitoringServicer):
                             try:
                                 with open(image_path, 'rb') as img_file:
                                     response = requests.post(
-                                        f"http://{self.ip_config['host']}:{self.ip_config['port']}/images/upload",
+                                        f"{self.ip_config['ip']}/images/upload",
                                         files={"image": img_file},
                                         data={"totalEntity": detection_saved}
                                     )
